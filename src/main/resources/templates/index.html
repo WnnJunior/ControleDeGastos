@@ -1,0 +1,247 @@
+<!DOCTYPE html>
+<html lang="pt-br" xmlns:th="http://www.thymeleaf.org" class="light">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Controle de Gastos</title>
+
+    <script src="https://unpkg.com/htmx.org@1.9.12"></script>
+
+    <style>
+        :root {
+            --bg-color: #f4f5f7;
+            --card-bg-color: #ffffff;
+            --text-color: #172b4d;
+            --subtext-color: #6b778c;
+            --border-color: #dfe1e6;
+            --primary-color: #0052cc;
+            --primary-hover-color: #0065ff;
+            --green-color: #36b37e;
+            --red-color: #de350b;
+            --yellow-color: #ffab00;
+            --grey-color: #6b778c;
+            --shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+
+        html.dark {
+            --bg-color: #172b4d;
+            --card-bg-color: #283e5d;
+            --text-color: #b0c0db;
+            --subtext-color: #8c9cb5;
+            --border-color: #42526e;
+            --primary-color: #4c9aff;
+            --primary-hover-color: #69b4ff;
+        }
+
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 40px;
+            background: var(--bg-color);
+            color: var(--text-color);
+        }
+
+        .container {
+            max-width: 900px;
+            margin: auto;
+            padding: 25px;
+            background: var(--card-bg-color);
+            border-radius: 8px;
+            box-shadow: var(--shadow);
+        }
+
+        h1 {
+            margin-top: 0;
+        }
+
+        form {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+
+        input, select {
+            padding: 10px;
+            font-size: 15px;
+            border: 1px solid var(--border-color);
+            border-radius: 5px;
+        }
+
+        .add-btn {
+            background: var(--primary-color);
+            color: white;
+            border: none;
+            padding: 10px 18px;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+
+        .add-btn:hover {
+            background: var(--primary-hover-color);
+        }
+
+        .list-header, .list-item {
+            display: grid;
+            grid-template-columns: 3fr 1fr 1fr 1fr 1fr;
+            padding: 12px;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .list-header {
+            font-weight: bold;
+            color: var(--subtext-color);
+        }
+
+        .valor.receita {
+            color: var(--green-color);
+        }
+
+        .valor.despesa {
+            color: var(--red-color);
+        }
+
+        .action-btn {
+            padding: 6px 12px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            color: white;
+            font-size: 13px;
+        }
+
+        .edit-btn {
+            background: var(--yellow-color);
+        }
+
+        .delete-btn {
+            background: var(--red-color);
+        }
+
+        .save-btn {
+            background: var(--green-color);
+        }
+
+        .cancel-btn {
+            background: var(--grey-color);
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <h1>Controle de Gastos 💰</h1>
+
+        <!-- Formulário de Adicionar -->
+        <form hx-post="/lancamentos"
+              hx-target="#lista-lancamentos"
+              hx-swap="innerHTML"
+              hx-on::after-request="this.reset()">
+
+            <input type="text" name="descricao" placeholder="Descrição" required>
+            <input type="number" step="0.01" name="valor" placeholder="Valor" required>
+
+            <select name="tipo" required>
+                <option th:each="t : ${tipos}"
+                        th:value="${t}"
+                        th:text="${t}">
+                </option>
+            </select>
+
+            <button class="add-btn">Adicionar</button>
+        </form>
+
+        <!-- Lista -->
+        <div id="lista-lancamentos">
+            <div th:fragment="lista-lancamentos">
+
+                <div class="list-header">
+                    <div>Descrição</div>
+                    <div>Valor</div>
+                    <div>Data</div>
+                    <div>Tipo</div>
+                    <div>Ações</div>
+                </div>
+
+                <div th:each="l : ${lancamentos}"
+                     th:id="'l' + ${l.id}"
+                     class="list-item">
+
+                    <div th:text="${l.descricao}"></div>
+
+                    <div th:classappend="${l.tipo.name() == 'DESPESA'} ? 'valor despesa' : 'valor receita'"
+                         th:text="'R$ ' + ${#numbers.formatDecimal(l.valor, 1, 'POINT', 2, 'COMMA')}">
+                    </div>
+
+                    <div th:text="${#temporals.format(l.data, 'dd/MM/yyyy')}"></div>
+
+                    <div th:text="${l.tipo}"></div>
+
+                    <div>
+                        <button class="action-btn edit-btn"
+                                th:hx-get="@{/lancamentos/editar/{id}(id=${l.id})}"
+                                th:hx-target="'#l' + ${l.id}"
+                                hx-swap="outerHTML">
+                            Editar
+                        </button>
+
+                        <button class="action-btn delete-btn"
+                                th:hx-delete="@{/lancamentos/{id}(id=${l.id})}"
+                                hx-target="#lista-lancamentos"
+                                hx-swap="innerHTML"
+                                hx-confirm="Deseja excluir?">
+                            Excluir
+                        </button>
+                    </div>
+
+                </div>
+
+            </div>
+        </div>
+
+        <!-- Formulário de edição -->
+        <div style="display:none">
+            <th:block th:fragment="form-edicao">
+
+                <div th:id="'l' + ${lancamentoParaEditar.id}" class="list-item">
+
+                    <input type="text" name="descricao" th:value="${lancamentoParaEditar.descricao}">
+
+                    <input type="number" step="0.01" name="valor" th:value="${lancamentoParaEditar.valor}">
+
+                    <input type="date" name="data"
+                           th:value="${#temporals.format(lancamentoParaEditar.data, 'yyyy-MM-dd')}">
+
+                    <select name="tipo">
+                        <option th:each="t : ${tipos}"
+                                th:value="${t}"
+                                th:selected="${t == lancamentoParaEditar.tipo}"
+                                th:text="${t}">
+                        </option>
+                    </select>
+
+                    <div>
+                        <button class="action-btn save-btn"
+                                th:hx-put="@{/lancamentos/{id}(id=${lancamentoParaEditar.id})}"
+                                hx-target="#lista-lancamentos"
+                                hx-swap="innerHTML"
+                                hx-include="closest .list-item">
+                            Salvar
+                        </button>
+
+                        <button class="action-btn cancel-btn"
+                                hx-get="/"
+                                hx-target="#lista-lancamentos"
+                                hx-swap="innerHTML">
+                            Cancelar
+                        </button>
+                    </div>
+
+                </div>
+
+            </th:block>
+        </div>
+
+    </div>
+
+</body>
+</html>
